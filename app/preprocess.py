@@ -1,46 +1,49 @@
 import pandas as pd
 from kiwipiepy import Kiwi
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import numpy as np
 import pickle
 import os
 
 kiwi = Kiwi()
 
+# 실제 데이터 기반 키워드 매핑
 MBTI_MAP = {
     # E/I 축 (사교성)
-    "사람": {"E": 2},
-    "활발": {"E": 2},
-    "명랑": {"E": 2},
-    "붙임": {"E": 1},
-    "겁": {"I": 2},
-    "경계심": {"I": 2},
-    "소심": {"I": 2},
-    "경계": {"I": 1},
-    "낯가림": {"I": 2},
+    "사람":    {"E": 3},
+    "따르":    {"E": 2},
+    "좋아하":  {"E": 2},
+    "활발":    {"E": 2},
+    "애교":    {"E": 2},
+    "겁":      {"I": 3},
+    "경계심":  {"I": 3},
+    "소심":    {"I": 2},
+    "경계":    {"I": 2},
+    "심하":    {"I": 1},
+    "입질":    {"I": 2},
     # S/N 축 (활동성)
-    "활동": {"S": 2},
-    "에너지": {"S": 2},
-    "장난": {"S": 1},
-    "온순": {"N": 2},
-    "순하": {"N": 2},
-    "얌전": {"N": 2},
-    "차분": {"N": 2},
-    "조용": {"N": 1},
+    "활발":    {"S": 2},
+    "순하":    {"N": 3},
+    "온순":    {"N": 3},
+    "얌전":    {"N": 2},
+    "착하":    {"N": 2},
     # T/F 축 (친화성)
-    "애교": {"F": 2},
-    "안김": {"F": 2},
-    "친화": {"F": 2},
-    "따름": {"F": 1},
-    "독립": {"T": 2},
-    "도도": {"T": 2},
-    "예민": {"T": 1},
+    "따르":    {"F": 2},
+    "좋아하":  {"F": 2},
+    "애교":    {"F": 2},
+    "경계심":  {"T": 2},
+    "경계":    {"T": 2},
+    "입질":    {"T": 2},
     # J/P 축 (적응력)
-    "적응": {"P": 2},
-    "유연": {"P": 1},
-    "민감": {"J": 2},
-    "심하": {"J": 1},
+    "양호":    {"P": 2},
+    "경계심":  {"J": 2},
+    "심하":    {"J": 1},
+    "경계":    {"J": 1},
 }
 
-DEFAULT_VECTOR = [1, 1, 0, 2, 0, 1, 1, 0]
+DEFAULT_VECTOR = [1,1,0,2,0,1,1,0]
 DEFAULT_MBTI = "INFP"
 
 def text_to_vector(text):
@@ -62,7 +65,6 @@ def text_to_vector(text):
 def get_mbti_type(vec):
     if vec == DEFAULT_VECTOR:
         return DEFAULT_MBTI
-    # 동점일 때 동물에 자연스러운 기본값
     defaults = ["I", "N", "F", "P"]
     axes = [("E","I"), ("S","N"), ("T","F"), ("J","P")]
     result = ""
@@ -76,6 +78,39 @@ def get_mbti_type(vec):
         else:
             result += default
     return result
+
+def train_knn_model(df):
+    print("\nKNN 모델 학습 시작...")
+
+    # 학습 데이터 준비
+    X = np.array(df["mbti_vector"].tolist())
+    Y = df["mbti_type"].tolist()
+
+    # 학습 80% / 테스트 20% 분리
+    X_train, X_test, Y_train, Y_test = train_test_split(
+        X, Y, test_size=0.2, random_state=42
+    )
+
+    # KNN 모델 학습
+    knn = KNeighborsClassifier(n_neighbors=5)
+    knn.fit(X_train, Y_train)
+
+    # 정확도 측정
+    Y_pred = knn.predict(X_test)
+    accuracy = accuracy_score(Y_test, Y_pred)
+    print(f"KNN 모델 정확도: {accuracy * 100:.1f}%")
+
+    # 모델 저장
+    with open("data/knn_model.pkl", "wb") as f:
+        pickle.dump(knn, f)
+    print("KNN 모델 저장 완료 → data/knn_model.pkl")
+
+    return knn, accuracy
+
+def predict_mbti(knn, text):
+    """새로운 텍스트의 MBTI를 KNN으로 예측"""
+    vec = np.array(text_to_vector(text)).reshape(1, -1)
+    return knn.predict(vec)[0]
 
 def run_preprocessing():
     print("전처리 시작...")
@@ -93,8 +128,21 @@ def run_preprocessing():
 
     print("\nMBTI 타입 분포:")
     print(df["mbti_type"].value_counts().head(10))
-    print("\n샘플 확인:")
-    print(df[["kindCd", "specialMark", "mbti_type"]].head(10))
+
+    # KNN 모델 학습
+    knn, accuracy = train_knn_model(df)
+
+    # 테스트
+    print("\n=== KNN 예측 테스트 ===")
+    test_texts = [
+        "순하고 사람을 좋아함",
+        "겁이 많고 경계심이 심함",
+        "활발하고 애교가 많음",
+        "얌전하고 온순함",
+    ]
+    for text in test_texts:
+        predicted = predict_mbti(knn, text)
+        print(f"'{text}' → {predicted}")
 
 if __name__ == "__main__":
     run_preprocessing()
