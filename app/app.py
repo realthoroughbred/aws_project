@@ -6,6 +6,10 @@ app = Flask(__name__)
 CORS(app)
 matcher = PetMatcher()
 
+@app.route("/")
+def home():
+    return "Pet Matching API Server Running"
+
 @app.route("/match/top3", methods=["POST"])
 def top3():
     body = request.get_json()
