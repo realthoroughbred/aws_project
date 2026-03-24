@@ -6,14 +6,12 @@ import os
 API_KEY = "f88bc16de6c9ce5e6a4eb47edc307403046264f6467b94dc6c9212acb13f95b1"
 BASE_URL = "https://apis.data.go.kr/1543061/abandonmentPublicService_v2/abandonmentPublic_v2"
 
-def fetch_animals(total_pages=10):
+def fetch_animals(total_pages=50):
     all_items = []
     for page in range(1, total_pages + 1):
         try:
             url = f"{BASE_URL}?serviceKey={API_KEY}&pageNo={page}&numOfRows=100&_type=json"
             res = requests.get(url, timeout=10)
-            print(f"상태코드: {res.status_code}")
-            print(f"응답: {res.text[:300]}")
             data = res.json()
             items = data["response"]["body"]["items"]["item"]
             if isinstance(items, dict):
@@ -27,7 +25,7 @@ def fetch_animals(total_pages=10):
 
 def save_csv(items):
     if not items:
-        print("수집된 데이터가 없어요. API 키와 URL을 확인해주세요.")
+        print("수집된 데이터가 없어요.")
         return None
     df = pd.DataFrame(items)
     df = df[df["specialMark"].notna() & (df["specialMark"] != "")]
@@ -38,7 +36,7 @@ def save_csv(items):
 
 if __name__ == "__main__":
     print("데이터 수집 시작...")
-    items = fetch_animals(total_pages=50)
+    items = fetch_animals(total_pages=10)
     df = save_csv(items)
     if df is not None:
         print("\n샘플 데이터 확인:")
