@@ -21,11 +21,11 @@ COMPAT_MATRIX = {
 }
 
 COMPAT_DESC = {
-    (95, 100): ("천생연분 ★★★★★", "서로의 에너지가 완벽하게 맞아요!"),
-    (80,  94): ("잘 맞아요 ★★★★",  "함께하면 편안하고 즐거울 거예요."),
-    (65,  79): ("무난해요 ★★★",    "조금씩 맞춰가면 좋은 파트너가 될 수 있어요."),
-    (50,  64): ("노력이 필요해요 ★★","서로 다른 부분이 있지만 배울 점도 많아요."),
-    (0,   49): ("도전적인 궁합 ★",  "차이가 크지만 불가능하지 않아요!"),
+    (95,100): ("천생연분 ★★★★★", "서로의 에너지가 완벽하게 맞아요!"),
+    (80, 94): ("잘 맞아요 ★★★★",  "함께하면 편안하고 즐거울 거예요."),
+    (65, 79): ("무난해요 ★★★",    "조금씩 맞춰가면 좋은 파트너가 될 수 있어요."),
+    (50, 64): ("노력이 필요해요 ★★","서로 다른 부분이 있지만 배울 점도 많아요."),
+    (0,  49): ("도전적인 궁합 ★",  "차이가 크지만 불가능하지 않아요!"),
 }
 
 def get_compat_desc(score):
@@ -40,61 +40,74 @@ class PetMatcher:
             self.df = pickle.load(f)
         print(f"매처 로드 완료: {len(self.df)}마리")
 
-    def get_top3(self, user_mbti: str):
-        """나와 궁합 TOP 3 동물 추천"""
-        user_mbti = user_mbti.upper()
-        if user_mbti not in COMPAT_MATRIX:
-            return {"error": f"{user_mbti} 타입 정보 없음"}
-        results = []
-        for _, row in self.df.iterrows():
-            animal_mbti = str(row.get("mbti_type", ""))
-            if animal_mbti not in COMPAT_MATRIX.get(user_mbti, {}):
-                continue
-            score = COMPAT_MATRIX[user_mbti][animal_mbti]
-            label, msg = get_compat_desc(score)
-            results.append({
-                "id":           str(row.get("desertionNo", "")),
-                "name":         str(row.get("kindCd", "")),
-                "age":          str(row.get("age", "")),
-                "sex":          str(row.get("sexCd", "")),
-                "animal_mbti":  animal_mbti,
-                "user_mbti":    user_mbti,
-                "compat_score": score,
-                "compat_label": label,
-                "compat_msg":   msg,
-                "specialMark":  str(row.get("specialMark", ""))[:60],
-                "image_url":    str(row.get("photoUrl", "")),
-                "shelter":      str(row.get("careNm", "")),
-                "shelter_addr": str(row.get("careAddr", "")),
-            })
-        results.sort(key=lambda x: x["compat_score"], reverse=True)
-        return results[:3]
-
-    def get_one_compat(self, user_mbti: str, animal_id: str):
-        """선택한 동물과 1:1 궁합 확인"""
-        user_mbti = user_mbti.upper()
-        row = self.df[self.df["desertionNo"].astype(str) == animal_id]
-        if row.empty:
-            return {"error": "해당 동물을 찾을 수 없어요"}
-        row = row.iloc[0]
+    def _build_result(self, row, user_mbti):
         animal_mbti = str(row.get("mbti_type", ""))
         score = COMPAT_MATRIX.get(user_mbti, {}).get(animal_mbti, 50)
         label, msg = get_compat_desc(score)
+        name = str(row.get("kindNm", "") or row.get("kindCd", "알 수 없음"))
+        image_url = str(row.get("filename", "") or "")
         return {
-            "id":           animal_id,
-            "name":         str(row.get("kindCd", "")),
+            "id":           str(row.get("desertionNo", "")),
+            "name":         name,
+            "age":          str(row.get("age", "")),
+            "sex":          str(row.get("sexCd", "")),
             "animal_mbti":  animal_mbti,
             "user_mbti":    user_mbti,
             "compat_score": score,
             "compat_label": label,
             "compat_msg":   msg,
             "specialMark":  str(row.get("specialMark", ""))[:60],
-            "image_url":    str(row.get("photoUrl", "")),
+            "image_url":    image_url,
             "shelter":      str(row.get("careNm", "")),
+            "shelter_addr": str(row.get("careAddr", "")),
+            "shelter_tel":  str(row.get("careTel", "")),
         }
+
+    def get_top3(self, user_mbti: str):
+        user_mbti = user_mbti.upper()
+        if user_mbti not in COMPAT_MATRIX:
+            return {"error": f"{user_mbti} 타입 정보 없음"}
+
+        results = []
+        for _, row in self.df.iterrows():
+            animal_mbti = str(row.get("mbti_type", ""))
+            if animal_mbti not in COMPAT_MATRIX.get(user_mbti, {}):
+                continue
+            results.append(self._build_result(row, user_mbti))
+
+        # 점수 높은 순 정렬
+        results.sort(key=lambda x: x["compat_score"], reverse=True)
+
+        # 같은 MBTI 타입 중복 제거 → 다양한 결과 보여주기
+        seen_mbti = []
+        unique_results = []
+        for r in results:
+            if r["animal_mbti"] not in seen_mbti:
+                seen_mbti.append(r["animal_mbti"])
+                unique_results.append(r)
+            if len(unique_results) == 3:
+                break
+
+        # 3개 못 채우면 중복 허용해서 채우기
+        if len(unique_results) < 3:
+            for r in results:
+                if r not in unique_results:
+                    unique_results.append(r)
+                if len(unique_results) == 3:
+                    break
+
+        return unique_results
+
+    def get_one_compat(self, user_mbti: str, animal_id: str):
+        user_mbti = user_mbti.upper()
+        row = self.df[self.df["desertionNo"].astype(str) == animal_id]
+        if row.empty:
+            return {"error": "해당 동물을 찾을 수 없어요"}
+        return self._build_result(row.iloc[0], user_mbti)
 
 if __name__ == "__main__":
     matcher = PetMatcher()
     results = matcher.get_top3("INFP")
     for i, r in enumerate(results, 1):
-        print(f"{i}위: {r['name']} | {r['animal_mbti']} | {r['compat_score']}점 | {r['compat_label']}")
+        print(f"{i}위: {r['name']} | {r['animal_mbti']} | {r['compat_score']}점")
+        print(f"   이미지: {r['image_url']}")

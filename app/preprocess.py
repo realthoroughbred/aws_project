@@ -9,38 +9,37 @@ import os
 
 kiwi = Kiwi()
 
-# 실제 데이터 기반 키워드 매핑
 MBTI_MAP = {
     # E/I 축 (사교성)
-    "사람":    {"E": 3},
-    "따르":    {"E": 2},
-    "좋아하":  {"E": 2},
-    "활발":    {"E": 2},
-    "애교":    {"E": 2},
-    "겁":      {"I": 3},
-    "경계심":  {"I": 3},
-    "소심":    {"I": 2},
-    "경계":    {"I": 2},
-    "심하":    {"I": 1},
-    "입질":    {"I": 2},
+    "사람":   {"E": 3},
+    "따르":   {"E": 2},
+    "좋아하": {"E": 2},
+    "활발":   {"E": 2},
+    "애교":   {"E": 2},
+    "겁":     {"I": 3},
+    "경계심": {"I": 3},
+    "소심":   {"I": 2},
+    "경계":   {"I": 2},
+    "심하":   {"I": 1},
+    "입질":   {"I": 2},
     # S/N 축 (활동성)
-    "활발":    {"S": 2},
-    "순하":    {"N": 3},
-    "온순":    {"N": 3},
-    "얌전":    {"N": 2},
-    "착하":    {"N": 2},
+    "활발":   {"S": 2},
+    "순하":   {"N": 3},
+    "온순":   {"N": 3},
+    "얌전":   {"N": 2},
+    "착하":   {"N": 2},
     # T/F 축 (친화성)
-    "따르":    {"F": 2},
-    "좋아하":  {"F": 2},
-    "애교":    {"F": 2},
-    "경계심":  {"T": 2},
-    "경계":    {"T": 2},
-    "입질":    {"T": 2},
+    "따르":   {"F": 2},
+    "좋아하": {"F": 2},
+    "애교":   {"F": 2},
+    "경계심": {"T": 2},
+    "경계":   {"T": 2},
+    "입질":   {"T": 2},
     # J/P 축 (적응력)
-    "양호":    {"P": 2},
-    "경계심":  {"J": 2},
-    "심하":    {"J": 1},
-    "경계":    {"J": 1},
+    "양호":   {"P": 2},
+    "경계심": {"J": 2},
+    "심하":   {"J": 1},
+    "경계":   {"J": 1},
 }
 
 DEFAULT_VECTOR = [1,1,0,2,0,1,1,0]
@@ -81,36 +80,24 @@ def get_mbti_type(vec):
 
 def train_knn_model(df):
     print("\nKNN 모델 학습 시작...")
-
-    # 학습 데이터 준비
     X = np.array(df["mbti_vector"].tolist())
     Y = df["mbti_type"].tolist()
 
-    # 학습 80% / 테스트 20% 분리
     X_train, X_test, Y_train, Y_test = train_test_split(
         X, Y, test_size=0.2, random_state=42
     )
 
-    # KNN 모델 학습
     knn = KNeighborsClassifier(n_neighbors=5)
     knn.fit(X_train, Y_train)
 
-    # 정확도 측정
     Y_pred = knn.predict(X_test)
     accuracy = accuracy_score(Y_test, Y_pred)
     print(f"KNN 모델 정확도: {accuracy * 100:.1f}%")
 
-    # 모델 저장
     with open("data/knn_model.pkl", "wb") as f:
         pickle.dump(knn, f)
     print("KNN 모델 저장 완료 → data/knn_model.pkl")
-
     return knn, accuracy
-
-def predict_mbti(knn, text):
-    """새로운 텍스트의 MBTI를 KNN으로 예측"""
-    vec = np.array(text_to_vector(text)).reshape(1, -1)
-    return knn.predict(vec)[0]
 
 def run_preprocessing():
     print("전처리 시작...")
@@ -129,20 +116,14 @@ def run_preprocessing():
     print("\nMBTI 타입 분포:")
     print(df["mbti_type"].value_counts().head(10))
 
-    # KNN 모델 학습
-    knn, accuracy = train_knn_model(df)
+    print("\n샘플 확인:")
+    show_cols = ["kindNm", "specialMark", "mbti_type"]
+    if "filename" in df.columns:
+        show_cols.append("filename")
+    print(df[show_cols].head(5))
 
-    # 테스트
-    print("\n=== KNN 예측 테스트 ===")
-    test_texts = [
-        "순하고 사람을 좋아함",
-        "겁이 많고 경계심이 심함",
-        "활발하고 애교가 많음",
-        "얌전하고 온순함",
-    ]
-    for text in test_texts:
-        predicted = predict_mbti(knn, text)
-        print(f"'{text}' → {predicted}")
+    knn, accuracy = train_knn_model(df)
+    return df
 
 if __name__ == "__main__":
     run_preprocessing()
