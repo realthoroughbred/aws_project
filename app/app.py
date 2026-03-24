@@ -1,14 +1,15 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from matcher import PetMatcher
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="../frontend")
 CORS(app)
+
 matcher = PetMatcher()
 
 @app.route("/")
 def home():
-    return "Pet Matching API Server Running"
+    return render_template("index.html")
 
 @app.route("/match/top3", methods=["POST"])
 def top3():
