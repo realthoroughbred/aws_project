@@ -1,0 +1,11 @@
+flask
+flask-cors
+anthropic
+sentence-transformers
+scikit-learn
+pandas
+pymysql
+streamlit
+requests
+matplotlib
+seaborn
