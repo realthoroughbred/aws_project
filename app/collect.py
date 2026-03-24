@@ -38,7 +38,7 @@ def save_csv(items):
 
 if __name__ == "__main__":
     print("데이터 수집 시작...")
-    items = fetch_animals(total_pages=10)
+    items = fetch_animals(total_pages=50)
     df = save_csv(items)
     if df is not None:
         print("\n샘플 데이터 확인:")
