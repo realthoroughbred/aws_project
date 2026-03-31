@@ -1,18 +1,18 @@
 """
-labeling.py  —  Claude API로 동물 MBTI 라벨링
+labeling.py  —  Groq API로 동물 MBTI 라벨링 (무료)
 실행: python app/labeling.py
 결과: data/animals_labeled.csv
 
 필요:
-    pip install anthropic pandas
-    충전: https://console.anthropic.com/settings/billing
+    pip install groq pandas
+    API 키: https://console.groq.com → API Keys → Create API Key
 """
 
-import anthropic
+from groq import Groq
 import pandas as pd, re, time, os
 from collections import Counter
 
-ANTHROPIC_API_KEY = "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"
+GROQ_API_KEY = "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"
 
 VALID_MBTI = {
     "ENFP","ENFJ","ENTP","ENTJ","ESFP","ESFJ","ESTP","ESTJ",
@@ -33,11 +33,12 @@ J vs P: 예측 가능하고 규칙적이면 J, 즉흥적이고 자유로우면 P
 - 성체: 안정적 → S 성향
 - 노령: 조용하고 루틴 선호 → S, J 성향
 
-품종 정보와 특이사항을 종합해서 판단하세요.
-정보가 부족한 축은 나이·품종 평균 성격으로 추정하세요.
-반드시 MBTI 4글자만 출력하세요. 예: ISFJ"""
+중요:
+- 성격 정보가 없으면 (마을 배회, 목줄 착용 등 행동/외모 정보만 있으면) ISTJ 출력
+- 품종 정보와 특이사항을 종합해서 판단
+- 반드시 MBTI 4글자만 출력. 예: ISFJ"""
 
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+client = Groq(api_key=GROQ_API_KEY)
 
 def build_input(row) -> str:
     return (f"품종: {row.get('kindNm', '알 수 없음')}\n"
@@ -48,26 +49,34 @@ def build_input(row) -> str:
 
 def label_one(text: str) -> str:
     try:
-        msg = client.messages.create(
-            model="claude-haiku-4-5",
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             max_tokens=10,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": text}]
+            temperature=0,  # 항상 같은 답 → 일관성 확보
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user",   "content": text}
+            ]
         )
-        raw = msg.content[0].text.strip().upper()
+        raw = response.choices[0].message.content.strip().upper()
         m   = re.search(r'\b([EI][NS][TF][JP])\b', raw)
         if m and m.group(1) in VALID_MBTI:
             return m.group(1)
-        return "ISFJ"
+        return "ISTJ"
     except Exception as e:
         print(f"  API 오류: {e}")
         return None
 
 def label_with_vote(text: str, n: int = 3) -> str:
     """같은 텍스트 n번 호출 → 다수결로 채택"""
-    results = [r for _ in range(n) if (r := label_one(text))]
+    results = []
+    for _ in range(n):
+        r = label_one(text)
+        if r:
+            results.append(r)
+        time.sleep(0.5)
     if not results:
-        return "ISFJ"
+        return "ISTJ"
     vote, _ = Counter(results).most_common(1)[0]
     return vote
 
@@ -76,12 +85,12 @@ def run_labeling(
     output_csv: str   = "data/animals_labeled.csv",
     sample_n:   int   = None,
     n_votes:    int   = 3,
-    delay:      float = 0.3,
+    delay:      float = 2.0,
 ):
     df = pd.read_csv(input_csv, encoding="utf-8-sig")
     print(f"원본: {len(df)}건")
 
-    # 이어서 진행 (중단돼도 안 날아감)
+    # 이어서 진행
     if os.path.exists(output_csv):
         done     = pd.read_csv(output_csv, encoding="utf-8-sig")
         done_ids = set(done["desertionNo"].astype(str))
@@ -101,7 +110,6 @@ def run_labeling(
         labels.append(mbti)
         print(f"[{i+1}/{len(df)}] {mbti}  ←  {str(row.get('specialMark',''))[:40]}...")
 
-        # 50건마다 중간 저장
         if (i + 1) % 50 == 0:
             tmp = df.iloc[:i+1].copy()
             tmp["mbti_label"] = labels
@@ -119,6 +127,6 @@ def run_labeling(
     return final
 
 if __name__ == "__main__":
-    # 테스트: sample_n=10, n_votes=1  → 잘 되면 아래로 변경
+    # 테스트: sample_n=10, n_votes=1
     # 전체:   sample_n=None, n_votes=3
     run_labeling(sample_n=10, n_votes=1)
