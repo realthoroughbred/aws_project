@@ -129,4 +129,4 @@ def run_labeling(
 if __name__ == "__main__":
     # 테스트: sample_n=10, n_votes=1
     # 전체:   sample_n=None, n_votes=3
-    run_labeling(sample_n=10, n_votes=1)
+    run_labeling(sample_n=None, n_votes=3)
