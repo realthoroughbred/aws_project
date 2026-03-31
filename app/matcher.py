@@ -1,13 +1,103 @@
 """
 matcher.py  —  MBTI 궁합 계산 + 동물 TOP 3 추천
+RDS 연결 전 임시: CSV 파일 직접 읽기
 """
 
+import base64
+import os
 import pickle
+from pathlib import Path
+
+import pandas as pd
+import requests
 from sentence_transformers import SentenceTransformer
-from db import get_all_animals, get_animal_by_id
 from train_model import build_text
 
 MODEL_PATH = "data/knn_model.pkl"
+CSV_PATH   = "data/animals_labeled.csv"
+CACHE_DIR = Path("data/generated_images")
+HF_IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
+HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
+HF_TIMEOUT_SEC = int(os.getenv("HF_TIMEOUT_SEC", "90"))
+
+
+def _to_data_uri(png_bytes: bytes) -> str:
+    return "data:image/png;base64," + base64.b64encode(png_bytes).decode("utf-8")
+
+
+def _cache_path(desertion_no: str, species: str) -> Path:
+    safe_species = species or "pet"
+    safe_id = str(desertion_no or "unknown")
+    return CACHE_DIR / f"{safe_species}_{safe_id}.png"
+
+
+def _build_prompt(row: dict) -> str:
+    species = row.get("species", "")
+    kind = row.get("kindNm", "mixed breed")
+    sex = row.get("sexCd", "")
+    age = row.get("age", "")
+    animal = "dog" if species == "dog" else "cat"
+    return (
+        f"cute {animal} portrait, semi-realistic digital illustration, "
+        f"soft natural lighting, detailed fur, centered face, plain pastel background, "
+        f"high quality, no text, no watermark, {kind}, {sex}, {age}"
+    )
+
+
+def _generate_hf_png(prompt: str) -> bytes | None:
+    if not HF_API_TOKEN:
+        return None
+    url = f"https://api-inference.huggingface.co/models/{HF_IMAGE_MODEL}"
+    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+    payload = {"inputs": prompt}
+    try:
+        res = requests.post(url, headers=headers, json=payload, timeout=HF_TIMEOUT_SEC)
+        if res.status_code != 200:
+            return None
+        content_type = res.headers.get("content-type", "")
+        if "image" not in content_type:
+            return None
+        return res.content
+    except Exception:
+        return None
+
+
+def resolve_image(row: dict) -> str:
+    """Return existing image, or generated/cached data URI when possible."""
+    existing = row.get("filename", "")
+    if existing:
+        return str(existing)
+
+    desertion_no = str(row.get("desertionNo", ""))
+    species = str(row.get("species", ""))
+    cache_file = _cache_path(desertion_no, species)
+    if cache_file.exists():
+        return _to_data_uri(cache_file.read_bytes())
+
+    png = _generate_hf_png(_build_prompt(row))
+    if not png:
+        return ""
+
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_file.write_bytes(png)
+    return _to_data_uri(png)
+
+# ── CSV 임시 DB 함수 (RDS 세팅 전까지 사용) ──────────────────────────────────
+
+def get_all_animals(species=None):
+    df = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
+    if species:
+        df = df[df["species"] == species]
+    return df.to_dict("records")
+
+def get_animal_by_id(desertion_no):
+    df  = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
+    row = df[df["desertionNo"].astype(str) == str(desertion_no)]
+    if row.empty:
+        return None
+    return row.iloc[0].to_dict()
+
+# ── MBTI 궁합 점수표 ──────────────────────────────────────────────────────────
 
 COMPAT = {
     ("ENFP","INFJ"):95, ("ENFP","INTJ"):90, ("ENFP","ENFJ"):85,
@@ -86,8 +176,7 @@ COMPAT = {
     ("ESFP","ISFP"):75, ("ESFP","ESFP"):72, ("ESFP","ESTP"):70,
     ("ESFP","ENFJ"):65, ("ESFP","INFJ"):62, ("ESFP","ESTJ"):60,
     ("ESFP","ENFP"):58, ("ESFP","ENTP"):50, ("ESFP","INTP"):48,
-    ("ESFP","ENTJ"):45, ("ESFP","INTJ"):43, ("ESFP","ISFJ"):40,
-    ("ESFP","ISTJ"):38,
+    ("ESFP","ENTJ"):45, ("ESFP","INTJ"):43,
     ("ISFP","ESFJ"):92, ("ISFP","ENFJ"):90, ("ISFP","ESTJ"):82,
     ("ISFP","ESFP"):75, ("ISFP","ISFP"):72, ("ISFP","ISFJ"):70,
     ("ISFP","ISTP"):68, ("ISFP","ISTJ"):65, ("ISFP","INFP"):63,
@@ -131,8 +220,8 @@ class PetMatcher:
         self.embed_model = SentenceTransformer(bundle["embed_model"])
 
     def _predict_mbti(self, row: dict) -> str:
-        if row.get("mbti_label"):
-            return row["mbti_label"]
+        if row.get("mbti_label") and str(row.get("mbti_label")) != "nan":
+            return str(row["mbti_label"])
         text = build_text(row)
         vec  = self.embed_model.encode([text], normalize_embeddings=True)
         idx  = self.clf.predict(vec)[0]
@@ -146,7 +235,7 @@ class PetMatcher:
             score = compat_score(user_mbti, mbti)
             scored.append({
                 "rank":        0,
-                "desertionNo": a["desertionNo"],
+                "desertionNo": a.get("desertionNo", ""),
                 "kindNm":      a.get("kindNm", ""),
                 "age":         a.get("age", ""),
                 "sexCd":       a.get("sexCd", ""),
@@ -162,6 +251,8 @@ class PetMatcher:
         top3 = sorted(scored, key=lambda x: x["score"], reverse=True)[:3]
         for i, r in enumerate(top3):
             r["rank"] = i + 1
+            if not r.get("image"):
+                r["image"] = resolve_image(r)
         return top3
 
     def get_one_compat(self, user_mbti: str, desertion_no: str) -> dict:
@@ -177,7 +268,7 @@ class PetMatcher:
             "user_mbti":   user_mbti,
             "score":       score,
             "comment":     compat_comment(score),
-            "image":       animal.get("filename", ""),
+            "image":       resolve_image(animal),
             "careNm":      animal.get("careNm", ""),
             "careAddr":    animal.get("careAddr", ""),
         }

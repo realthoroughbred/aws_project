@@ -5,10 +5,19 @@ app.py  —  Flask REST API 서버
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pathlib import Path
 
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# 프로젝트 루트(.env) 로드
+ROOT_DIR = Path(__file__).resolve().parent.parent
+env_path = ROOT_DIR / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
 
 app = Flask(__name__)
 CORS(app)
