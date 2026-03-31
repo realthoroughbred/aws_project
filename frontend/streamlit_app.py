@@ -174,7 +174,20 @@ html, body, [class*="css"] { font-family: 'Noto Sans KR', sans-serif; }
     font-size:1rem !important; box-shadow:0 4px 16px rgba(196,77,255,0.25) !important;
     transition:all 0.2s !important;
 }
+.stButton > button, .stButton > button * {
+    color:white !important;
+    -webkit-text-fill-color: white !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.12);
+}
 .stButton > button:hover { transform:translateY(-2px) !important; box-shadow:0 8px 24px rgba(196,77,255,0.35) !important; }
+
+/* Spinner (e.g. "나와 찰떡궁합인 동물을 찾는 중이에요 🐾") text contrast */
+div[data-testid="stSpinner"], div[data-testid="stSpinner"] * {
+    color:#333 !important;
+    -webkit-text-fill-color:#333 !important;
+    text-shadow:none !important;
+}
+
 .stProgress > div > div { background:linear-gradient(90deg,#ff6b9d,#c44dff) !important; }
 div[data-testid="stRadio"] label p { color: #333 !important; font-size: 0.95rem !important; }
 div[data-testid="stRadio"] label {
