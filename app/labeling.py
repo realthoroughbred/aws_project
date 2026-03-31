@@ -5,13 +5,14 @@ labeling.py  —  Claude API로 동물 MBTI 라벨링
 
 필요:
     pip install anthropic pandas
-    export ANTHROPIC_API_KEY="sk-ant-..."
+    충전: https://console.anthropic.com/settings/billing
 """
 
-import anthropic, pandas as pd, re, time, os
+import anthropic
+import pandas as pd, re, time, os
 from collections import Counter
 
-client = anthropic.Anthropic()
+ANTHROPIC_API_KEY = "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"
 
 VALID_MBTI = {
     "ENFP","ENFJ","ENTP","ENTJ","ESFP","ESFJ","ESTP","ESTJ",
@@ -36,6 +37,8 @@ J vs P: 예측 가능하고 규칙적이면 J, 즉흥적이고 자유로우면 P
 정보가 부족한 축은 나이·품종 평균 성격으로 추정하세요.
 반드시 MBTI 4글자만 출력하세요. 예: ISFJ"""
 
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
 def build_input(row) -> str:
     return (f"품종: {row.get('kindNm', '알 수 없음')}\n"
             f"나이: {row.get('age', '알 수 없음')} ({row.get('age_group', '성체')})\n"
@@ -46,9 +49,8 @@ def build_input(row) -> str:
 def label_one(text: str) -> str:
     try:
         msg = client.messages.create(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5",
             max_tokens=10,
-            temperature=0,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": text}]
         )
@@ -56,7 +58,7 @@ def label_one(text: str) -> str:
         m   = re.search(r'\b([EI][NS][TF][JP])\b', raw)
         if m and m.group(1) in VALID_MBTI:
             return m.group(1)
-        return "ISFJ"   # 판단 불가 시 기본값
+        return "ISFJ"
     except Exception as e:
         print(f"  API 오류: {e}")
         return None
@@ -81,9 +83,9 @@ def run_labeling(
 
     # 이어서 진행 (중단돼도 안 날아감)
     if os.path.exists(output_csv):
-        done    = pd.read_csv(output_csv, encoding="utf-8-sig")
+        done     = pd.read_csv(output_csv, encoding="utf-8-sig")
         done_ids = set(done["desertionNo"].astype(str))
-        df      = df[~df["desertionNo"].astype(str).isin(done_ids)].reset_index(drop=True)
+        df       = df[~df["desertionNo"].astype(str).isin(done_ids)].reset_index(drop=True)
         print(f"이어서: {len(done)}건 완료, {len(df)}건 남음")
     else:
         done = pd.DataFrame()
@@ -94,8 +96,8 @@ def run_labeling(
 
     labels = []
     for i, row in df.iterrows():
-        text  = build_input(row)
-        mbti  = label_with_vote(text, n=n_votes)
+        text = build_input(row)
+        mbti = label_with_vote(text, n=n_votes)
         labels.append(mbti)
         print(f"[{i+1}/{len(df)}] {mbti}  ←  {str(row.get('specialMark',''))[:40]}...")
 
@@ -117,6 +119,6 @@ def run_labeling(
     return final
 
 if __name__ == "__main__":
-    # 테스트: sample_n=30, n_votes=1
+    # 테스트: sample_n=10, n_votes=1  → 잘 되면 아래로 변경
     # 전체:   sample_n=None, n_votes=3
-    run_labeling(sample_n=30, n_votes=1)
+    run_labeling(sample_n=10, n_votes=1)
