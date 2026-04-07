@@ -15,7 +15,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.preprocessing import LabelEncoder
 
 EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
-DATA_PATH   = "data/animals_labeled.csv"
+DATA_PATH = "data/animals_labeled_full.csv"
 MODEL_PATH  = "data/knn_model.pkl"
 
 def build_text(row) -> str:
@@ -135,4 +135,4 @@ if __name__ == "__main__":
     evaluate(clf, X_test, y_test, le)
     save_model(clf, le)
 
-    print("\n완료. 다음: python app/app.py")
+    print("\n완료. 다음: python backend/app/app.py")
