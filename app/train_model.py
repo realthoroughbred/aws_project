@@ -73,7 +73,7 @@ def evaluate(clf, X_test, y_test, le):
     acc      = accuracy_score(y_test, y_pred)
     classes  = le.classes_
     print(f"{'='*50}\n테스트 정확도: {acc*100:.1f}%\n{'='*50}\n")
-    print(classification_report(y_test, y_pred, target_names=classes))
+    print(classification_report(y_test, y_pred, labels=list(range(len(set(y_test)))), target_names=[classes[i] for i in sorted(set(y_test))]))
 
     try:
         import matplotlib; matplotlib.use("Agg")
