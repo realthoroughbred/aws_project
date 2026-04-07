@@ -5,19 +5,10 @@ app.py  —  Flask REST API 서버
 """
 
 import sys, os
-from pathlib import Path
-
-from dotenv import load_dotenv
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 프로젝트 루트(.env) 로드
-ROOT_DIR = Path(__file__).resolve().parent.parent
-env_path = ROOT_DIR / ".env"
-if env_path.exists():
-    load_dotenv(env_path)
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
@@ -117,3 +108,54 @@ def one_match():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
+
+
+@app.route("/animal/register", methods=["POST"])
+def register_animal():
+    body = request.get_json()
+    if not body:
+        return jsonify({"error": "요청 데이터가 없습니다."}), 400
+
+    # 필수 항목 확인
+    if not body.get("kindNm"):
+        return jsonify({"error": "품종을 입력해주세요."}), 400
+
+    m = get_matcher()
+    if m is None:
+        return jsonify({"error": "모델이 준비되지 않았어요."}), 503
+
+    try:
+        import pandas as pd, os, uuid
+        from datetime import datetime
+
+        # MBTI 예측
+        mbti = body.get("mbti_label") or m._predict_mbti(body)
+
+        # CSV에 추가 저장 (DB 연동 전 임시)
+        csv_path = "data/animals_labeled.csv"
+        new_row = {
+            "desertionNo": str(uuid.uuid4())[:12].replace("-",""),
+            "kindNm":      body.get("kindNm", ""),
+            "age":         body.get("age", ""),
+            "sexCd":       body.get("sexCd", "M"),
+            "neuterYn":    body.get("neuterYn", "N"),
+            "specialMark": body.get("specialMark", ""),
+            "careNm":      body.get("careNm", ""),
+            "careAddr":    body.get("careAddr", ""),
+            "careTel":     body.get("careTel", ""),
+            "species":     body.get("species", "dog"),
+            "age_group":   "성체",
+            "mbti_label":  mbti,
+            "filename":    "",
+            "processState": "보호중",
+        }
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path, encoding="utf-8-sig")
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        else:
+            df = pd.DataFrame([new_row])
+        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+        return jsonify({"success": True, "mbti": mbti, "desertionNo": new_row["desertionNo"]})
+    except Exception as e:
+        return jsonify({"error": f"등록 중 오류: {str(e)}"}), 500
