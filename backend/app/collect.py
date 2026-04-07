@@ -12,7 +12,7 @@ BASE_URL = "https://apis.data.go.kr/1543061/abandonmentPublicService_v2/abandonm
 COLS = [
     "desertionNo", "kindNm", "age", "sexCd", "neuterYn",
     "specialMark", "careNm", "careAddr", "careTel",
-    "processState", "filename",
+    "processState", "popfile1", "popfile2",
 ]
 
 def parse_age_group(age_str: str) -> str:
@@ -31,7 +31,8 @@ def fetch_animals(total_pages: int = 10) -> list:
         try:
             url   = (f"{BASE_URL}?serviceKey={API_KEY}"
                      f"&pageNo={page}&numOfRows=100&_type=json")
-            items = requests.get(url, timeout=10).json()["response"]["body"]["items"]["item"]
+            resp  = requests.get(url, timeout=10).json()
+            items = resp["response"]["body"]["items"]["item"]
             if isinstance(items, dict):
                 items = [items]
             all_items.extend(items)
@@ -45,21 +46,35 @@ def save_csv(items: list) -> pd.DataFrame:
     if not items:
         print("수집된 데이터가 없습니다.")
         return None
+
     df = pd.DataFrame(items)
-    df = df[[c for c in COLS if c in df.columns]]
+
+    # 이미지 URL: popfile1 우선, 없으면 popfile2
+    df["filename"] = df.get("popfile1", "").fillna("")
+    if "popfile2" in df.columns:
+        df["filename"] = df["filename"].replace("", None).fillna(df["popfile2"])
+    df["filename"] = df["filename"].fillna("").astype(str).replace("nan", "")
+
+    keep_cols = [c for c in COLS if c in df.columns] + ["filename"]
+    df = df[[c for c in keep_cols if c in df.columns]]
+
     df["specialMark"] = df["specialMark"].fillna("").astype(str)
     df["age_group"]   = df["age"].apply(parse_age_group)
     df["species"]     = df["kindNm"].apply(
         lambda x: "cat" if ("고양이" in str(x) or "묘" in str(x)) else "dog"
     )
+
     os.makedirs("data", exist_ok=True)
     df.to_csv("data/animals_raw.csv", index=False, encoding="utf-8-sig")
     print(f"\n저장: {len(df)}건 → data/animals_raw.csv")
     print(f"강아지: {(df['species']=='dog').sum()}건  고양이: {(df['species']=='cat').sum()}건")
+    print(f"이미지 URL 있는 건수: {(df['filename'] != '').sum()}건")
+    print(f"\n이미지 URL 샘플:")
+    print(df[df['filename'] != '']['filename'].head(3).tolist())
     return df
 
 if __name__ == "__main__":
     print("데이터 수집 시작...")
     df = save_csv(fetch_animals(total_pages=10))
     if df is not None:
-        print(df[["kindNm", "age_group", "species", "specialMark"]].head())
+        print(df[["kindNm", "age_group", "species", "filename"]].head())
