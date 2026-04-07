@@ -132,7 +132,7 @@ def register_animal():
         mbti = body.get("mbti_label") or m._predict_mbti(body)
 
         # CSV에 추가 저장 (DB 연동 전 임시)
-        csv_path = "data/animals_labeled.csv"
+        csv_path = "animals_labeled_full.csv"
         new_row = {
             "desertionNo": str(uuid.uuid4())[:12].replace("-",""),
             "kindNm":      body.get("kindNm", ""),
