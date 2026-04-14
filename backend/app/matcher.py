@@ -13,7 +13,7 @@ import requests
 from sentence_transformers import SentenceTransformer
 from train_model import build_text
 
-MODEL_PATH = "data/knn_model.pkl"
+MODEL_PATH = "data/svm_model.pkl"
 CSV_PATH   = "data/animals_labeled.csv"
 CACHE_DIR = Path("data/generated_images")
 HF_IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
@@ -63,7 +63,6 @@ def _generate_hf_png(prompt: str) -> bytes | None:
 
 
 def resolve_image(row: dict) -> str:
-    """Return existing image, or generated/cached data URI when possible."""
     existing = row.get("filename", "")
     if existing:
         return str(existing)
@@ -82,7 +81,7 @@ def resolve_image(row: dict) -> str:
     cache_file.write_bytes(png)
     return _to_data_uri(png)
 
-# ── CSV 임시 DB 함수 (RDS 세팅 전까지 사용) ──────────────────────────────────
+# ── CSV 임시 DB 함수 ──────────────────────────────────────────────────────────
 
 def get_all_animals(species=None):
     df = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
@@ -198,7 +197,7 @@ COMPAT = {
 }
 
 def compat_score(user_mbti: str, animal_mbti: str) -> int:
-    key    = (user_mbti, animal_mbti)
+    key = (user_mbti, animal_mbti)
     if key in COMPAT:
         return COMPAT[key]
     common = sum(a == b for a, b in zip(user_mbti, animal_mbti))
@@ -234,41 +233,3 @@ class PetMatcher:
             mbti  = self._predict_mbti(a)
             score = compat_score(user_mbti, mbti)
             scored.append({
-                "rank":        0,
-                "desertionNo": a.get("desertionNo", ""),
-                "kindNm":      a.get("kindNm", ""),
-                "age":         a.get("age", ""),
-                "sexCd":       a.get("sexCd", ""),
-                "species":     a.get("species", ""),
-                "mbti":        mbti,
-                "score":       score,
-                "comment":     compat_comment(score),
-                "image":       a.get("filename", ""),
-                "careNm":      a.get("careNm", ""),
-                "careAddr":    a.get("careAddr", ""),
-                "careTel":     a.get("careTel", ""),
-            })
-        top3 = sorted(scored, key=lambda x: x["score"], reverse=True)[:3]
-        for i, r in enumerate(top3):
-            r["rank"] = i + 1
-            if not r.get("image"):
-                r["image"] = resolve_image(r)
-        return top3
-
-    def get_one_compat(self, user_mbti: str, desertion_no: str) -> dict:
-        animal = get_animal_by_id(desertion_no)
-        if not animal:
-            return {"error": "동물을 찾을 수 없습니다."}
-        mbti  = self._predict_mbti(animal)
-        score = compat_score(user_mbti, mbti)
-        return {
-            "desertionNo": desertion_no,
-            "kindNm":      animal.get("kindNm", ""),
-            "animal_mbti": mbti,
-            "user_mbti":   user_mbti,
-            "score":       score,
-            "comment":     compat_comment(score),
-            "image":       resolve_image(animal),
-            "careNm":      animal.get("careNm", ""),
-            "careAddr":    animal.get("careAddr", ""),
-        }

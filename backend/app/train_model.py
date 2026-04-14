@@ -1,7 +1,7 @@
 """
-train_model.py  —  임베딩 + KNN 분류 모델 학습
+train_model.py  —  임베딩 + SVM 분류 모델 학습
 실행: python app/train_model.py
-결과: data/knn_model.pkl  +  data/confusion_matrix.png (발표 자료)
+결과: data/svm_model.pkl  +  data/confusion_matrix.png (발표 자료)
 
 필요:
     pip install sentence-transformers scikit-learn pandas matplotlib seaborn
@@ -9,14 +9,14 @@ train_model.py  —  임베딩 + KNN 분류 모델 학습
 
 import pandas as pd, numpy as np, pickle, os, time
 from sentence_transformers import SentenceTransformer
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
 
 EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 DATA_PATH = "data/animals_labeled_full.csv"
-MODEL_PATH  = "data/knn_model.pkl"
+MODEL_PATH  = "data/svm_model.pkl"
 
 def build_text(row) -> str:
     """학습 입력 텍스트 구성 — 모든 컬럼 활용"""
@@ -49,20 +49,23 @@ def embed(texts: list, model: SentenceTransformer) -> np.ndarray:
     print(f"완료: {vecs.shape}  ({time.time()-t:.1f}초)\n")
     return vecs
 
-# ── 3. KNN 학습 ───────────────────────────────────────────────────────────────
+# ── 3. SVM 학습 ───────────────────────────────────────────────────────────────
 
-def train_knn(X_train, y_train) -> KNeighborsClassifier:
-    print("최적 K 탐색 중 (5-fold cross validation)...")
-    best_k, best_score = 3, 0
-    for k in [3, 5, 7, 9, 11]:
-        knn    = KNeighborsClassifier(n_neighbors=k, metric="cosine")
-        scores = cross_val_score(knn, X_train, y_train, cv=5, scoring="accuracy")
-        mean   = scores.mean()
-        print(f"  K={k}: {mean*100:.1f}% (±{scores.std()*100:.1f}%)")
-        if mean > best_score:
-            best_k, best_score = k, mean
-    print(f"\n최적 K={best_k} 선택\n")
-    clf = KNeighborsClassifier(n_neighbors=best_k, metric="cosine")
+def train_clf(X_train, y_train) -> SVC:
+    print("SVM 학습 중 (class_weight='balanced' 적용)...")
+
+    clf = SVC(
+        kernel="rbf",
+        C=10,
+        gamma="scale",
+        class_weight="balanced",
+        probability=True,
+        random_state=42,
+    )
+
+    scores = cross_val_score(clf, X_train, y_train, cv=5, scoring="accuracy")
+    print(f"  5-fold CV: {scores.mean()*100:.1f}% (±{scores.std()*100:.1f}%)\n")
+
     clf.fit(X_train, y_train)
     return clf
 
@@ -131,7 +134,7 @@ if __name__ == "__main__":
     )
     print(f"학습: {len(X_train)}건  /  테스트: {len(X_test)}건\n")
 
-    clf = train_knn(X_train, y_train)
+    clf = train_clf(X_train, y_train)
     evaluate(clf, X_test, y_test, le)
     save_model(clf, le)
 

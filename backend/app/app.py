@@ -25,7 +25,7 @@ def get_matcher():
         print("모델 로딩 성공")
         return matcher
     except FileNotFoundError:
-        print("경고: knn_model.pkl 없음 → 라벨링 및 학습 먼저 실행하세요")
+        print("경고: svm_model.pkl 없음 → 라벨링 및 학습 먼저 실행하세요")
         return None
     except Exception as e:
         print(f"경고: 모델 로딩 실패 → {e}")
@@ -116,46 +116,4 @@ def register_animal():
     if not body:
         return jsonify({"error": "요청 데이터가 없습니다."}), 400
 
-    # 필수 항목 확인
-    if not body.get("kindNm"):
-        return jsonify({"error": "품종을 입력해주세요."}), 400
-
-    m = get_matcher()
-    if m is None:
-        return jsonify({"error": "모델이 준비되지 않았어요."}), 503
-
-    try:
-        import pandas as pd, os, uuid
-        from datetime import datetime
-
-        # MBTI 예측
-        mbti = body.get("mbti_label") or m._predict_mbti(body)
-
-        # CSV에 추가 저장 (DB 연동 전 임시)
-        csv_path = "animals_labeled_full.csv"
-        new_row = {
-            "desertionNo": str(uuid.uuid4())[:12].replace("-",""),
-            "kindNm":      body.get("kindNm", ""),
-            "age":         body.get("age", ""),
-            "sexCd":       body.get("sexCd", "M"),
-            "neuterYn":    body.get("neuterYn", "N"),
-            "specialMark": body.get("specialMark", ""),
-            "careNm":      body.get("careNm", ""),
-            "careAddr":    body.get("careAddr", ""),
-            "careTel":     body.get("careTel", ""),
-            "species":     body.get("species", "dog"),
-            "age_group":   "성체",
-            "mbti_label":  mbti,
-            "filename":    "",
-            "processState": "보호중",
-        }
-        if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path, encoding="utf-8-sig")
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        else:
-            df = pd.DataFrame([new_row])
-        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-
-        return jsonify({"success": True, "mbti": mbti, "desertionNo": new_row["desertionNo"]})
-    except Exception as e:
-        return jsonify({"error": f"등록 중 오류: {str(e)}"}), 500
+    if not body.get("kindNm")
