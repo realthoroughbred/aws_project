@@ -13,70 +13,60 @@ import requests
 from sentence_transformers import SentenceTransformer
 from train_model import build_text
 
-MODEL_PATH = "data/svm_model.pkl"
-CSV_PATH   = "data/animals_labeled.csv"
-CACHE_DIR = Path("data/generated_images")
+# 절대경로로 설정
+_BASE      = Path(__file__).resolve().parent.parent.parent
+MODEL_PATH = str(_BASE / "data" / "svm_model.pkl")
+CSV_PATH   = str(_BASE / "data" / "animals_labeled.csv")
+CACHE_DIR  = _BASE / "data" / "generated_images"
+
 HF_IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
-HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
+HF_API_TOKEN   = os.getenv("HF_API_TOKEN", "")
 HF_TIMEOUT_SEC = int(os.getenv("HF_TIMEOUT_SEC", "90"))
 
 
 def _to_data_uri(png_bytes: bytes) -> str:
     return "data:image/png;base64," + base64.b64encode(png_bytes).decode("utf-8")
 
-
 def _cache_path(desertion_no: str, species: str) -> Path:
-    safe_species = species or "pet"
-    safe_id = str(desertion_no or "unknown")
-    return CACHE_DIR / f"{safe_species}_{safe_id}.png"
-
+    return CACHE_DIR / f"{species or 'pet'}_{desertion_no or 'unknown'}.png"
 
 def _build_prompt(row: dict) -> str:
     species = row.get("species", "")
-    kind = row.get("kindNm", "mixed breed")
-    sex = row.get("sexCd", "")
-    age = row.get("age", "")
-    animal = "dog" if species == "dog" else "cat"
+    kind    = row.get("kindNm", "mixed breed")
+    sex     = row.get("sexCd", "")
+    age     = row.get("age", "")
+    animal  = "dog" if species == "dog" else "cat"
     return (
         f"cute {animal} portrait, semi-realistic digital illustration, "
         f"soft natural lighting, detailed fur, centered face, plain pastel background, "
         f"high quality, no text, no watermark, {kind}, {sex}, {age}"
     )
 
-
 def _generate_hf_png(prompt: str) -> bytes | None:
     if not HF_API_TOKEN:
         return None
-    url = f"https://api-inference.huggingface.co/models/{HF_IMAGE_MODEL}"
+    url     = f"https://api-inference.huggingface.co/models/{HF_IMAGE_MODEL}"
     headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-    payload = {"inputs": prompt}
     try:
-        res = requests.post(url, headers=headers, json=payload, timeout=HF_TIMEOUT_SEC)
-        if res.status_code != 200:
-            return None
-        content_type = res.headers.get("content-type", "")
-        if "image" not in content_type:
+        res = requests.post(url, headers=headers, json={"inputs": prompt}, timeout=HF_TIMEOUT_SEC)
+        if res.status_code != 200 or "image" not in res.headers.get("content-type", ""):
             return None
         return res.content
     except Exception:
         return None
 
-
 def resolve_image(row: dict) -> str:
     existing = row.get("filename", "")
-    if existing:
+    if existing and str(existing) not in ("", "nan", "None"):
         return str(existing)
-
     desertion_no = str(row.get("desertionNo", ""))
-    species = str(row.get("species", ""))
-    cache_file = _cache_path(desertion_no, species)
+    species      = str(row.get("species", ""))
+    cache_file   = _cache_path(desertion_no, species)
     if cache_file.exists():
         return _to_data_uri(cache_file.read_bytes())
-
     png = _generate_hf_png(_build_prompt(row))
     if not png:
         return ""
-
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_file.write_bytes(png)
     return _to_data_uri(png)
@@ -233,3 +223,46 @@ class PetMatcher:
             mbti  = self._predict_mbti(a)
             score = compat_score(user_mbti, mbti)
             scored.append({
+                "rank":        0,
+                "desertionNo": a.get("desertionNo", ""),
+                "kindNm":      a.get("kindNm", ""),
+                "age":         a.get("age", ""),
+                "sexCd":       a.get("sexCd", ""),
+                "species":     a.get("species", ""),
+                "mbti":        mbti,
+                "score":       score,
+                "comment":     compat_comment(score),
+                "image":       resolve_image(a),
+                "careNm":      a.get("careNm", ""),
+                "careAddr":    a.get("careAddr", ""),
+                "careTel":     a.get("careTel", ""),
+            })
+
+        # MBTI별 최고점 동물 1마리씩 뽑기 → 다양한 MBTI 보장
+        best_per_mbti = {}
+        for s in sorted(scored, key=lambda x: x["score"], reverse=True):
+            if s["mbti"] not in best_per_mbti:
+                best_per_mbti[s["mbti"]] = s
+
+        top3 = sorted(best_per_mbti.values(), key=lambda x: x["score"], reverse=True)[:3]
+        for i, r in enumerate(top3):
+            r["rank"] = i + 1
+        return top3
+
+    def get_one_compat(self, user_mbti: str, desertion_no: str) -> dict:
+        animal = get_animal_by_id(desertion_no)
+        if not animal:
+            return {"error": "동물을 찾을 수 없습니다."}
+        mbti  = self._predict_mbti(animal)
+        score = compat_score(user_mbti, mbti)
+        return {
+            "desertionNo": desertion_no,
+            "kindNm":      animal.get("kindNm", ""),
+            "animal_mbti": mbti,
+            "user_mbti":   user_mbti,
+            "score":       score,
+            "comment":     compat_comment(score),
+            "image":       resolve_image(animal),
+            "careNm":      animal.get("careNm", ""),
+            "careAddr":    animal.get("careAddr", ""),
+        }

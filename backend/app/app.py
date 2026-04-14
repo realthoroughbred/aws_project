@@ -25,7 +25,7 @@ def get_matcher():
         print("모델 로딩 성공")
         return matcher
     except FileNotFoundError:
-        print("경고: svm_model.pkl 없음 → 라벨링 및 학습 먼저 실행하세요")
+        print("경고: svm_model.pkl 없음 → 학습 먼저 실행하세요")
         return None
     except Exception as e:
         print(f"경고: 모델 로딩 실패 → {e}")
@@ -44,6 +44,8 @@ def validate_mbti(mbti: str):
     if mbti.upper() not in VALID_MBTI:
         return False, f"유효하지 않은 MBTI입니다: {mbti}"
     return True, None
+
+# ── 엔드포인트 ────────────────────────────────────────────────────────────────
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -72,7 +74,7 @@ def top3():
 
     m = get_matcher()
     if m is None:
-        return jsonify({"error": "모델이 준비되지 않았어요. 라벨링 → 학습 먼저 실행하세요."}), 503
+        return jsonify({"error": "모델이 준비되지 않았어요."}), 503
 
     try:
         results = m.get_top3(user_mbti, species=species)
@@ -98,7 +100,7 @@ def one_match():
 
     m = get_matcher()
     if m is None:
-        return jsonify({"error": "모델이 준비되지 않았어요. 라벨링 → 학습 먼저 실행하세요."}), 503
+        return jsonify({"error": "모델이 준비되지 않았어요."}), 503
 
     try:
         result = m.get_one_compat(user_mbti, desertion_no)
@@ -106,14 +108,52 @@ def one_match():
     except Exception as e:
         return jsonify({"error": f"궁합 계산 중 오류: {str(e)}"}), 500
 
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
-
-
 @app.route("/animal/register", methods=["POST"])
 def register_animal():
     body = request.get_json()
     if not body:
         return jsonify({"error": "요청 데이터가 없습니다."}), 400
 
-    if not body.get("kindNm")
+    if not body.get("kindNm"):
+        return jsonify({"error": "품종을 입력해주세요."}), 400
+
+    m = get_matcher()
+    if m is None:
+        return jsonify({"error": "모델이 준비되지 않았어요."}), 503
+
+    try:
+        import pandas as pd, uuid
+
+        mbti = body.get("mbti_label") or m._predict_mbti(body)
+
+        csv_path = "data/animals_labeled.csv"
+        new_row = {
+            "desertionNo":  str(uuid.uuid4())[:12].replace("-", ""),
+            "kindNm":       body.get("kindNm", ""),
+            "age":          body.get("age", ""),
+            "sexCd":        body.get("sexCd", "M"),
+            "neuterYn":     body.get("neuterYn", "N"),
+            "specialMark":  body.get("specialMark", ""),
+            "careNm":       body.get("careNm", ""),
+            "careAddr":     body.get("careAddr", ""),
+            "careTel":      body.get("careTel", ""),
+            "species":      body.get("species", "dog"),
+            "age_group":    "성체",
+            "mbti_label":   mbti,
+            "filename":     "",
+            "processState": "보호중",
+        }
+
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path, encoding="utf-8-sig")
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        else:
+            df = pd.DataFrame([new_row])
+        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+        return jsonify({"success": True, "mbti": mbti, "desertionNo": new_row["desertionNo"]})
+    except Exception as e:
+        return jsonify({"error": f"등록 중 오류: {str(e)}"}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
