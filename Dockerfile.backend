@@ -15,4 +15,4 @@ COPY backend/app ./backend/app
 COPY data ./data
 
 EXPOSE 5000
-CMD ["python", "app.py"]
+CMD ["python", "backend/app/app.py"]

@@ -1,7 +1,9 @@
 """
 streamlit_app.py  —  궁합냥멍 프론트엔드
-실행: streamlit run frontend/streamlit_app.py
+실행: 프로젝트 루트 또는 frontend에서 `streamlit run frontend/streamlit_app.py` (둘 다 `frontend/.streamlit` 또는 루트 `.streamlit`의 라이트 테마 적용)
 """
+
+import os
 
 import streamlit as st
 import requests
@@ -9,7 +11,7 @@ import base64
 from pathlib import Path
 from urllib.parse import quote
 
-API_URL = "http://localhost:5000"
+API_URL = os.environ.get("API_URL", "http://localhost:5000").rstrip("/")
 
 def _pets_hero_img_html() -> str:
     _png = Path(__file__).resolve().parent / "assets" / "pets_hero.png"
@@ -170,8 +172,99 @@ label[data-testid="stWidgetLabel"] p,
   -webkit-text-fill-color: #262730 !important;
   background-color: #ffffff !important;
 }
+/* ── Select (Streamlit 1.33+ : Styletron, class .stSelectbox — Base Web 아님) ── */
+[data-testid="stSelectbox"] div[role="combobox"],
+.stSelectbox div[role="combobox"],
+[data-testid="stMain"] div[role="combobox"],
+[data-testid="stAppViewContainer"] div[role="combobox"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+  border-color: rgba(49, 51, 63, 0.28) !important;
+  box-shadow: none !important;
+}
+[data-testid="stSelectbox"] div[role="combobox"] *,
+.stSelectbox div[role="combobox"] * {
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+}
+/* 접힌 상태 선택 문구: combobox 바깥·role 없는 Styletron div까지 포함 */
+[data-testid="stSelectbox"] div,
+.stSelectbox div {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+  opacity: 1 !important;
+}
+[data-testid="stSelectbox"] span,
+.stSelectbox span {
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+  opacity: 1 !important;
+}
+[data-testid="stSelectbox"] input,
+.stSelectbox input {
+  background-color: #ffffff !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+}
+[data-testid="stSelectbox"] div[role="listbox"],
+.stSelectbox div[role="listbox"],
+[data-testid="stSelectbox"] ul[role="listbox"],
+.stSelectbox ul[role="listbox"] {
+  background-color: #ffffff !important;
+  color: #262730 !important;
+  border: 1px solid rgba(49, 51, 63, 0.2) !important;
+}
+[data-testid="stSelectbox"] li[role="option"],
+.stSelectbox li[role="option"],
+div[role="listbox"] li[role="option"] {
+  background-color: #ffffff !important;
+  color: #262730 !important;
+}
+[data-testid="stSelectbox"] li[role="option"]:hover,
+.stSelectbox li[role="option"]:hover,
+div[role="listbox"] li[role="option"]:hover {
+  background-color: #fff0f5 !important;
+}
+/* 구버전 Base Web select (혹시 남아 있으면) */
+.stSelectbox [data-baseweb="select"],
+.stSelectbox [data-baseweb="select"] > div,
+.stSelectbox [data-baseweb="select"] > div > div,
+[data-testid="stSelectbox"] [data-baseweb="select"],
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div > div {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #262730 !important;
+  border-color: rgba(49, 51, 63, 0.25) !important;
+  -webkit-text-fill-color: #262730 !important;
+}
 .stSelectbox [data-baseweb="select"] span,
-.stSelectbox [data-baseweb="select"] > div { color: #262730 !important; }
+.stSelectbox [data-baseweb="select"] p,
+.stSelectbox [data-baseweb="select"] div[role="combobox"],
+[data-testid="stSelectbox"] [data-baseweb="select"] span,
+[data-testid="stSelectbox"] [data-baseweb="select"] p {
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+}
+.stSelectbox svg,
+[data-testid="stSelectbox"] svg { fill: #31333F !important; }
+div[data-baseweb="popover"] ul,
+div[data-baseweb="menu"] ul {
+  background-color: #ffffff !important;
+}
+div[data-baseweb="popover"] li,
+div[data-baseweb="menu"] li {
+  color: #262730 !important;
+  background-color: #ffffff !important;
+}
+div[data-baseweb="popover"] li:hover,
+div[data-baseweb="menu"] li:hover {
+  background-color: #fff0f5 !important;
+}
 .hero { text-align:center; padding:2rem 0 0.5rem; position:relative; z-index:1; }
 .hero-title { font-size:2.8rem; font-weight:900; background:linear-gradient(135deg, #ff6b9d, #c44dff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin:0; line-height:1.2; }
 .hero-sub { color:#999; font-size:1rem; margin-top:0.4rem; }
@@ -224,6 +317,66 @@ div[data-testid="stSpinner"] p { color: #c44dff !important; font-weight:600 !imp
 .stApp .mbti-type-name { color:#c44dff !important; }
 </style>
 """
+
+# Streamlit 기본(Emotion)보다 뒤에서 한 번 더 적용 — Select 드롭다운이 body 쪽 포털로 붙는 경우 포함
+THEME_LATE_CSS = """
+<style>
+/* ── 셀렉트박스 전체 강제 라이트 ── */
+[data-testid="stSelectbox"] *,
+.stSelectbox * {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+  opacity: 1 !important;
+}
+
+/* 드롭다운 팝오버 (body에 포털로 붙는 것) */
+[data-baseweb="popover"],
+[data-baseweb="popover"] *,
+[data-baseweb="menu"],
+[data-baseweb="menu"] * {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+}
+
+[data-baseweb="menu"] [role="option"]:hover,
+[data-baseweb="menu"] [aria-selected="true"] {
+  background-color: #fff0f5 !important;
+}
+
+/* listbox 전역 */
+body div[role="listbox"],
+div[role="listbox"],
+div[role="listbox"] * {
+  background-color: #ffffff !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+  border: 1px solid rgba(49, 51, 63, 0.2) !important;
+}
+
+div[role="listbox"] li[role="option"] {
+  background-color: #ffffff !important;
+  color: #262730 !important;
+}
+
+div[role="listbox"] li[role="option"]:hover {
+  background-color: #fff0f5 !important;
+}
+
+/* combobox 닫힌 상태 */
+[data-testid="stSelectbox"] div[role="combobox"],
+.stSelectbox div[role="combobox"] {
+  background-color: #ffffff !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+  border-color: rgba(49, 51, 63, 0.28) !important;
+}
+</style>
+"""
+
 
 def calc_mbti(answers):
     scores = {"E":0,"I":0,"S":0,"N":0,"T":0,"F":0,"J":0,"P":0}
@@ -475,3 +628,5 @@ with tab2:
                   <p style="color:#5a2bb8;font-size:0.9rem;margin-top:1rem;font-weight:600;">✅ DB에 저장 완료! 이제 궁합 매칭에 반영돼요 🎉</p>
                 </div>
                 """, unsafe_allow_html=True)
+
+st.markdown(THEME_LATE_CSS, unsafe_allow_html=True)
