@@ -189,6 +189,15 @@ label[data-testid="stWidgetLabel"] p,
   color: #262730 !important;
   -webkit-text-fill-color: #262730 !important;
 }
+/* 접힌 상태 선택 문구: combobox 바깥·role 없는 Styletron div까지 포함 */
+[data-testid="stSelectbox"] div,
+.stSelectbox div {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+  opacity: 1 !important;
+}
 [data-testid="stSelectbox"] span,
 .stSelectbox span {
   color: #262730 !important;
@@ -309,44 +318,26 @@ div[data-testid="stSpinner"] p { color: #c44dff !important; font-weight:600 !imp
 </style>
 """
 
-# ── 핵심 수정: * 전체선택자 제거 → 컨테이너는 transparent, combobox만 흰색 ──
+# Streamlit 기본(Emotion)보다 뒤에서 한 번 더 적용 — Select 드롭다운이 body 쪽 포털로 붙는 경우 포함
 THEME_LATE_CSS = """
 <style>
-/* selectbox 바깥 컨테이너는 투명하게 (핑크 배경이 비치도록) */
-[data-testid="stSelectbox"] > div,
-[data-testid="stSelectbox"] > div > div,
-.stSelectbox > div,
-.stSelectbox > div > div {
-  background-color: transparent !important;
-  background-image: none !important;
-}
-
-/* 실제 입력창(combobox)만 흰색 — text_input과 동일하게 */
-[data-testid="stSelectbox"] div[role="combobox"],
-.stSelectbox div[role="combobox"] {
+/* ── 셀렉트박스 전체 강제 라이트 ── */
+[data-testid="stSelectbox"] *,
+.stSelectbox * {
   background-color: #ffffff !important;
+  background-image: none !important;
   color: #262730 !important;
   -webkit-text-fill-color: #262730 !important;
-  border-color: rgba(49, 51, 63, 0.28) !important;
-}
-
-[data-testid="stSelectbox"] span,
-[data-testid="stSelectbox"] p,
-.stSelectbox span,
-.stSelectbox p {
-  color: #262730 !important;
-  -webkit-text-fill-color: #262730 !important;
-  background-color: transparent !important;
+  opacity: 1 !important;
 }
 
 /* 드롭다운 팝오버 (body에 포털로 붙는 것) */
 [data-baseweb="popover"],
-[data-baseweb="menu"] {
-  background-color: #ffffff !important;
-}
-
 [data-baseweb="popover"] *,
+[data-baseweb="menu"],
 [data-baseweb="menu"] * {
+  background-color: #ffffff !important;
+  background-image: none !important;
   color: #262730 !important;
   -webkit-text-fill-color: #262730 !important;
 }
@@ -357,11 +348,13 @@ THEME_LATE_CSS = """
 }
 
 /* listbox 전역 */
+body div[role="listbox"],
 div[role="listbox"],
 div[role="listbox"] * {
   background-color: #ffffff !important;
   color: #262730 !important;
   -webkit-text-fill-color: #262730 !important;
+  border: 1px solid rgba(49, 51, 63, 0.2) !important;
 }
 
 div[role="listbox"] li[role="option"] {
@@ -371,6 +364,15 @@ div[role="listbox"] li[role="option"] {
 
 div[role="listbox"] li[role="option"]:hover {
   background-color: #fff0f5 !important;
+}
+
+/* combobox 닫힌 상태 */
+[data-testid="stSelectbox"] div[role="combobox"],
+.stSelectbox div[role="combobox"] {
+  background-color: #ffffff !important;
+  color: #262730 !important;
+  -webkit-text-fill-color: #262730 !important;
+  border-color: rgba(49, 51, 63, 0.28) !important;
 }
 </style>
 """
@@ -399,10 +401,10 @@ def call_top3(user_mbti, species):
     except requests.exceptions.Timeout:
         return {"error": "서버 응답 시간 초과."}
     except requests.exceptions.ConnectionError as e:
-        print(f"[DEBUG] ConnectionError: {e}")
+        print(f"[DEBUG] ConnectionError: {e}")  # ← 추가
         return {"error": f"서버 연결 실패: {e}"}
     except Exception as e:
-        print(f"[DEBUG] Exception: {e}")
+        print(f"[DEBUG] Exception: {e}")  # ← 추가
         return {"error": f"오류: {e}"}
 
 def call_one(user_mbti, desertion_no):
