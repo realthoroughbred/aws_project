@@ -1,0 +1,7 @@
+# 기본 라이트 테마 — OS/브라우저 다크모드와 무관하게 글자 대비 유지
+[theme]
+base = "light"
+primaryColor = "#ff6b9d"
+backgroundColor = "#fff5f8"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#262730"

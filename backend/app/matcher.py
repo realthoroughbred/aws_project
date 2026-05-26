@@ -1,6 +1,5 @@
 """
 matcher.py  —  MBTI 궁합 계산 + 동물 TOP 3 추천
-RDS 연결 전 임시: CSV 파일 직접 읽기
 """
 
 import base64
@@ -12,11 +11,11 @@ import pandas as pd
 import requests
 from sentence_transformers import SentenceTransformer
 from train_model import build_text
+from db import get_all_animals, get_animal_by_id
 
 # 절대경로로 설정
 _BASE      = Path(__file__).resolve().parent.parent.parent
 MODEL_PATH = str(_BASE / "data" / "svm_model.pkl")
-CSV_PATH   = str(_BASE / "data" / "animals_labeled.csv")
 CACHE_DIR  = _BASE / "data" / "generated_images"
 
 HF_IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
@@ -70,21 +69,6 @@ def resolve_image(row: dict) -> str:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_file.write_bytes(png)
     return _to_data_uri(png)
-
-# ── CSV 임시 DB 함수 ──────────────────────────────────────────────────────────
-
-def get_all_animals(species=None):
-    df = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
-    if species:
-        df = df[df["species"] == species]
-    return df.to_dict("records")
-
-def get_animal_by_id(desertion_no):
-    df  = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
-    row = df[df["desertionNo"].astype(str) == str(desertion_no)]
-    if row.empty:
-        return None
-    return row.iloc[0].to_dict()
 
 # ── MBTI 궁합 점수표 ──────────────────────────────────────────────────────────
 
@@ -238,7 +222,6 @@ class PetMatcher:
                 "careTel":     a.get("careTel", ""),
             })
 
-        # MBTI별 최고점 동물 1마리씩 뽑기 → 다양한 MBTI 보장
         best_per_mbti = {}
         for s in sorted(scored, key=lambda x: x["score"], reverse=True):
             if s["mbti"] not in best_per_mbti:

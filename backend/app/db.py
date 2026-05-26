@@ -4,17 +4,15 @@ db.py  —  AWS RDS MySQL 연결 및 데이터 적재/조회
 
 필요:
     pip install pymysql pandas
-    환경변수 설정 (또는 아래 직접 입력):
-        DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
 """
 
 import pymysql, pandas as pd, os
 
 DB_CONFIG = {
-    "host":     os.getenv("DB_HOST",     "your-rds-endpoint.rds.amazonaws.com"),
-    "user":     os.getenv("DB_USER",     "admin"),
-    "password": os.getenv("DB_PASSWORD", "your-password"),
-    "db":       os.getenv("DB_NAME",     "pawtype"),
+    "host":     "cloud1.cnks84yq8hs3.ap-northeast-2.rds.amazonaws.com",
+    "user":     "ttdmin",
+    "password": "catsonchoae52**",
+    "db":       "pawtype",
     "charset":  "utf8mb4",
     "cursorclass": pymysql.cursors.DictCursor,
 }
@@ -22,12 +20,12 @@ DB_CONFIG = {
 def get_conn():
     return pymysql.connect(**DB_CONFIG)
 
+
 # ── 테이블 생성 ───────────────────────────────────────────────────────────────
 
 def create_tables():
     conn = get_conn()
     with conn.cursor() as cur:
-        # 원본 동물 데이터
         cur.execute("""
         CREATE TABLE IF NOT EXISTS animals (
             desertionNo VARCHAR(30) PRIMARY KEY,
@@ -46,7 +44,6 @@ def create_tables():
         ) CHARACTER SET utf8mb4
         """)
 
-        # MBTI 라벨 테이블
         cur.execute("""
         CREATE TABLE IF NOT EXISTS animals_mbti (
             desertionNo VARCHAR(30) PRIMARY KEY,
@@ -58,14 +55,22 @@ def create_tables():
     conn.close()
     print("테이블 생성 완료")
 
+
 # ── CSV → DB 적재 ─────────────────────────────────────────────────────────────
 
-def load_raw_csv(csv_path: str = "data/animals_raw.csv"):
-    df   = pd.read_csv(csv_path, encoding="utf-8-sig").fillna("")
+def load_labeled_csv(csv_path: str = "data/animals_labeled.csv"):
+    df = pd.read_csv(csv_path, encoding="utf-8-sig", dtype={"desertionNo": str})
+
+    # 소수점 .0 제거
+    df["desertionNo"] = df["desertionNo"].str.replace(r'\.0$', '', regex=True)
+
     conn = get_conn()
-    cnt  = 0
+    cnt_animals = 0
+    cnt_mbti = 0
+
     with conn.cursor() as cur:
         for _, row in df.iterrows():
+            # animals 테이블 적재
             cur.execute("""
                 INSERT INTO animals
                     (desertionNo, kindNm, age, age_group, sexCd, neuterYn,
@@ -76,42 +81,36 @@ def load_raw_csv(csv_path: str = "data/animals_raw.csv"):
                     specialMark=VALUES(specialMark),
                     processState=VALUES(processState)
             """, (
-                str(row.get("desertionNo","")),
-                str(row.get("kindNm","")),
-                str(row.get("age","")),
-                str(row.get("age_group","")),
-                str(row.get("sexCd","")),
-                str(row.get("neuterYn","")),
-                str(row.get("specialMark","")),
-                str(row.get("species","")),
-                str(row.get("careNm","")),
-                str(row.get("careAddr","")),
-                str(row.get("careTel","")),
-                str(row.get("filename","")),
-                str(row.get("processState","")),
+                str(row.get("desertionNo", "")),
+                str(row.get("kindNm", "")),
+                str(row.get("age", "")),
+                str(row.get("age_group", "")),
+                str(row.get("sexCd", "")),
+                str(row.get("neuterYn", "")),
+                str(row.get("specialMark", "")),
+                str(row.get("species", "")),
+                str(row.get("careNm", "")),
+                str(row.get("careAddr", "")),
+                str(row.get("careTel", "")),
+                str(row.get("filename", "")),
+                str(row.get("processState", "")),
             ))
-            cnt += 1
-    conn.commit()
-    conn.close()
-    print(f"animals 테이블 적재: {cnt}건")
+            cnt_animals += 1
 
-def load_labeled_csv(csv_path: str = "data/animals_labeled.csv"):
-    df   = pd.read_csv(csv_path, encoding="utf-8-sig").fillna("")
-    conn = get_conn()
-    cnt  = 0
-    with conn.cursor() as cur:
-        for _, row in df.iterrows():
-            if not row.get("mbti_label"):
-                continue
-            cur.execute("""
-                INSERT INTO animals_mbti (desertionNo, mbti_label)
-                VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE mbti_label=VALUES(mbti_label)
-            """, (str(row["desertionNo"]), str(row["mbti_label"])))
-            cnt += 1
+            # animals_mbti 테이블 적재
+            if row.get("mbti_label"):
+                cur.execute("""
+                    INSERT INTO animals_mbti (desertionNo, mbti_label)
+                    VALUES (%s, %s)
+                    ON DUPLICATE KEY UPDATE mbti_label=VALUES(mbti_label)
+                """, (str(row["desertionNo"]), str(row["mbti_label"])))
+                cnt_mbti += 1
+
     conn.commit()
     conn.close()
-    print(f"animals_mbti 테이블 적재: {cnt}건")
+    print(f"animals 적재: {cnt_animals}건")
+    print(f"animals_mbti 적재: {cnt_mbti}건")
+
 
 # ── 조회 함수 (matcher.py에서 사용) ──────────────────────────────────────────
 
@@ -137,6 +136,7 @@ def get_all_animals(species: str = None) -> list:
     conn.close()
     return rows
 
+
 def get_animal_by_id(desertion_no: str) -> dict:
     conn = get_conn()
     with conn.cursor() as cur:
@@ -150,9 +150,9 @@ def get_animal_by_id(desertion_no: str) -> dict:
     conn.close()
     return row
 
+
 if __name__ == "__main__":
     print("DB 초기화 시작...")
     create_tables()
-    load_raw_csv()
     load_labeled_csv()
     print("완료!")

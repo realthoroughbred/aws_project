@@ -1,0 +1,7 @@
+# streamlit run frontend/streamlit_app.py 시 CWD가 frontend일 때도 라이트 테마 적용
+[theme]
+base = "light"
+primaryColor = "#ff6b9d"
+backgroundColor = "#fff5f8"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#262730"

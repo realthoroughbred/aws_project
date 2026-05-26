@@ -122,36 +122,43 @@ def register_animal():
         return jsonify({"error": "모델이 준비되지 않았어요."}), 503
 
     try:
-        import pandas as pd, uuid
+        import uuid
+        from db import get_conn
 
         mbti = body.get("mbti_label") or m._predict_mbti(body)
+        desertion_no = str(uuid.uuid4())[:12].replace("-", "")
 
-        csv_path = "data/animals_labeled.csv"
-        new_row = {
-            "desertionNo":  str(uuid.uuid4())[:12].replace("-", ""),
-            "kindNm":       body.get("kindNm", ""),
-            "age":          body.get("age", ""),
-            "sexCd":        body.get("sexCd", "M"),
-            "neuterYn":     body.get("neuterYn", "N"),
-            "specialMark":  body.get("specialMark", ""),
-            "careNm":       body.get("careNm", ""),
-            "careAddr":     body.get("careAddr", ""),
-            "careTel":      body.get("careTel", ""),
-            "species":      body.get("species", "dog"),
-            "age_group":    "성체",
-            "mbti_label":   mbti,
-            "filename":     "",
-            "processState": "보호중",
-        }
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO animals
+                    (desertionNo, kindNm, age, age_group, sexCd, neuterYn,
+                     specialMark, species, careNm, careAddr, careTel,
+                     filename, processState)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (
+                desertion_no,
+                body.get("kindNm", ""),
+                body.get("age", ""),
+                "성체",
+                body.get("sexCd", "M"),
+                body.get("neuterYn", "N"),
+                body.get("specialMark", ""),
+                body.get("species", "dog"),
+                body.get("careNm", ""),
+                body.get("careAddr", ""),
+                body.get("careTel", ""),
+                "",
+                "보호중",
+            ))
+            cur.execute("""
+                INSERT INTO animals_mbti (desertionNo, mbti_label)
+                VALUES (%s, %s)
+            """, (desertion_no, mbti))
+        conn.commit()
+        conn.close()
 
-        if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path, encoding="utf-8-sig")
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        else:
-            df = pd.DataFrame([new_row])
-        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-
-        return jsonify({"success": True, "mbti": mbti, "desertionNo": new_row["desertionNo"]})
+        return jsonify({"success": True, "mbti": mbti, "desertionNo": desertion_no})
     except Exception as e:
         return jsonify({"error": f"등록 중 오류: {str(e)}"}), 500
 
