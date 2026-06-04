@@ -15,7 +15,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.preprocessing import LabelEncoder
 
 EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
-DATA_PATH   = "data/animals_labeled.csv"
+DATA_PATH   = "data/animals__labeled.csv"
 MODEL_PATH  = "data/svm_model.pkl"
 
 def build_text(row) -> str:
