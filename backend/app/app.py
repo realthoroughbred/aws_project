@@ -4,7 +4,7 @@ app.py  —  Flask REST API 서버
 배포: AWS EC2
 """
 
-import sys, os
+import sys, os, base64
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, request, jsonify
@@ -110,10 +110,22 @@ def one_match():
 
 @app.route("/animal/register", methods=["POST"])
 def register_animal():
-    body = request.get_json()
+    import uuid, json
+    from db import get_conn
+
+    # ── multipart(이미지 포함) vs JSON 분기 ──
+    if request.content_type and "multipart/form-data" in request.content_type:
+        try:
+            body = json.loads(request.form.get("data", "{}"))
+        except Exception:
+            return jsonify({"error": "데이터 파싱 실패"}), 400
+        image_file = request.files.get("image")
+    else:
+        body = request.get_json()
+        image_file = None
+
     if not body:
         return jsonify({"error": "요청 데이터가 없습니다."}), 400
-
     if not body.get("kindNm"):
         return jsonify({"error": "품종을 입력해주세요."}), 400
 
@@ -122,11 +134,16 @@ def register_animal():
         return jsonify({"error": "모델이 준비되지 않았어요."}), 503
 
     try:
-        import uuid
-        from db import get_conn
-
-        mbti = body.get("mbti_label") or m._predict_mbti(body)
+        mbti         = body.get("mbti_label") or m._predict_mbti(body)
         desertion_no = str(uuid.uuid4())[:12].replace("-", "")
+
+        # 이미지 → Base64 변환
+        filename = ""
+        if image_file:
+            img_bytes  = image_file.read()
+            mime_type  = image_file.content_type or "image/jpeg"
+            b64_data   = base64.b64encode(img_bytes).decode("utf-8")
+            filename   = f"data:{mime_type};base64,{b64_data}"
 
         conn = get_conn()
         with conn.cursor() as cur:
@@ -148,7 +165,7 @@ def register_animal():
                 body.get("careNm", ""),
                 body.get("careAddr", ""),
                 body.get("careTel", ""),
-                "",
+                filename,
                 "보호중",
             ))
             cur.execute("""

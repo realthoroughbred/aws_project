@@ -13,7 +13,6 @@ from sentence_transformers import SentenceTransformer
 from train_model import build_text
 from db import get_all_animals, get_animal_by_id
 
-# 절대경로로 설정
 _BASE      = Path(__file__).resolve().parent.parent.parent
 MODEL_PATH = str(_BASE / "data" / "svm_model.pkl")
 CACHE_DIR  = _BASE / "data" / "generated_images"
@@ -177,12 +176,46 @@ def compat_score(user_mbti: str, animal_mbti: str) -> int:
     common = sum(a == b for a, b in zip(user_mbti, animal_mbti))
     return 40 + common * 15
 
-def compat_comment(score: int) -> str:
-    if score >= 90: return "천생연분이에요! 💕"
-    if score >= 80: return "정말 잘 맞아요! 😊"
-    if score >= 70: return "꽤 잘 맞는 편이에요 🙂"
-    if score >= 60: return "무난하게 잘 지낼 수 있어요"
-    return "서로 다르지만 배울 점이 있어요"
+# ── 궁합 코멘트 (점수 + rank별 다양한 메시지) ────────────────────────────────
+
+COMMENTS = {
+    (90, 101): [
+        "운명처럼 이어진 천생연분이에요! 함께라면 매일이 행복할 거예요 💕",
+        "이보다 완벽한 궁합은 없어요! 첫 만남부터 통하는 느낌이 들 거예요 🌟",
+        "서로를 위해 태어난 듯한 환상의 조합이에요 ✨ 꼭 만나보세요!",
+        "MBTI 궁합 최고점! 성격의 결이 완벽하게 맞아떨어져요 💖",
+    ],
+    (80, 90): [
+        "정말 잘 맞는 사이예요! 함께 있으면 편안하고 자연스러울 거예요 😊",
+        "서로의 장점을 끌어내주는 멋진 궁합이에요 🐾 함께하면 더 빛나요!",
+        "높은 궁합! 처음 만나도 오래 알던 친구처럼 편할 거예요 🌸",
+        "두 성격이 자연스럽게 조화를 이루는 훌륭한 조합이에요 💫",
+    ],
+    (70, 80): [
+        "꽤 잘 맞는 편이에요! 함께 시간을 보내다 보면 더 깊어지는 사이예요 🙂",
+        "서로 이해하며 좋은 관계를 만들어 갈 수 있는 궁합이에요 🐶",
+        "함께할수록 매력을 발견하는 사이예요 😊 천천히 친해져봐요!",
+        "안정적인 궁합! 서로에게 좋은 영향을 주고받을 수 있어요 🌿",
+    ],
+    (60, 70): [
+        "서로 다른 점도 있지만 그게 오히려 새로운 자극이 될 수 있어요 🌈",
+        "조금씩 맞춰가며 특별한 유대를 만들어갈 수 있는 사이예요 🐾",
+        "무난하게 잘 지낼 수 있어요! 노력하면 더 좋아질 거예요 😄",
+        "다름을 인정하며 서로 배워가는 소중한 관계가 될 거예요 💛",
+    ],
+    (0, 60): [
+        "서로 다르지만 그 차이가 새로운 가능성을 열어줄 거예요 🌱",
+        "도전적인 궁합이지만 함께 성장할 수 있는 기회예요 💪",
+        "처음엔 낯설 수 있지만 진심으로 다가가면 달라질 거예요 🐱",
+        "다양한 매력을 가진 특별한 만남이 될 거예요 🌟",
+    ],
+}
+
+def compat_comment(score: int, seed: int = 0) -> str:
+    for (low, high), messages in COMMENTS.items():
+        if low <= score < high:
+            return messages[seed % len(messages)]
+    return COMMENTS[(0, 60)][0]
 
 class PetMatcher:
     def __init__(self):
@@ -215,7 +248,7 @@ class PetMatcher:
                 "species":     a.get("species", ""),
                 "mbti":        mbti,
                 "score":       score,
-                "comment":     compat_comment(score),
+                "comment":     "",
                 "image":       resolve_image(a),
                 "careNm":      a.get("careNm", ""),
                 "careAddr":    a.get("careAddr", ""),
@@ -229,7 +262,8 @@ class PetMatcher:
 
         top3 = sorted(best_per_mbti.values(), key=lambda x: x["score"], reverse=True)[:3]
         for i, r in enumerate(top3):
-            r["rank"] = i + 1
+            r["rank"]    = i + 1
+            r["comment"] = compat_comment(r["score"], seed=i)  # rank별 다른 메시지
         return top3
 
     def get_one_compat(self, user_mbti: str, desertion_no: str) -> dict:
@@ -244,7 +278,7 @@ class PetMatcher:
             "animal_mbti": mbti,
             "user_mbti":   user_mbti,
             "score":       score,
-            "comment":     compat_comment(score),
+            "comment":     compat_comment(score, seed=2),
             "image":       resolve_image(animal),
             "careNm":      animal.get("careNm", ""),
             "careAddr":    animal.get("careAddr", ""),
