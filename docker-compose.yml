@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    image: jmlee01/aws_project_backend_260428_1
     ports:
       - "5000:5000"
     volumes:
@@ -12,6 +13,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+    image: jmlee01/aws_project_frontend_260428_1
     ports:
       - "8501:8501"
     depends_on:
