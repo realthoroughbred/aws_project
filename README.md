@@ -14,19 +14,9 @@
 
 ---
 
-## 🏗️ 아키텍처
+## 🏗️ 시스템 아키텍처
 
-```
-사용자 (Streamlit)
-    ↓
-Frontend (Streamlit, port 8501)
-    ↓ HTTP 요청
-Backend (Flask API, port 5000)
-    ↓
-모델 (sentence-transformers)
-    ↓
-AWS EC2 + Docker
-```
+<img src="docs/궁합냥멍_아키텍처.png" width="900" alt="궁합냥멍 시스템 아키텍처"/>
 
 ---
 
